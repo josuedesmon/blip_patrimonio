@@ -16,7 +16,7 @@ body{
     color:#111827;
 }
 
-.container{max-width:1000px;margin:auto;}
+.container{max-width:1100px;margin:auto;}
 
 .header{
     display:flex;
@@ -28,10 +28,7 @@ body{
 
 h1{font-size:28px;}
 
-.header-actions{
-    display:flex;
-    gap:8px;
-}
+.header-actions{display:flex;gap:8px;}
 
 button{
     background:#2563eb;
@@ -47,6 +44,33 @@ button:hover{opacity:.9;}
 
 .btn-red{background:#dc2626;}
 .btn-green{background:#16a34a;}
+.btn-dark{background:#111827;}
+.btn-gray{background:#6b7280;}
+
+.dashboard{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:10px;
+    margin-bottom:14px;
+}
+
+.metric{
+    background:white;
+    padding:14px;
+    border-radius:10px;
+    box-shadow:0 2px 8px rgba(0,0,0,.06);
+}
+
+.metric strong{
+    display:block;
+    font-size:22px;
+    margin-bottom:4px;
+}
+
+.metric span{
+    color:#6b7280;
+    font-size:13px;
+}
 
 .btn-editar,.btn-excluir{
     margin-top:12px;
@@ -67,7 +91,7 @@ button:hover{opacity:.9;}
 
 .filters{
     display:grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:1fr 1fr 1fr;
     gap:10px;
     margin-bottom:14px;
 }
@@ -129,7 +153,7 @@ button:hover{opacity:.9;}
 .modal-content{
     background:white;
     width:100%;
-    max-width:520px;
+    max-width:540px;
     border-radius:12px;
     padding:20px;
     max-height:90vh;
@@ -191,9 +215,7 @@ textarea{
     font-weight:normal;
 }
 
-.autocomplete-wrap{
-    position:relative;
-}
+.autocomplete-wrap{position:relative;}
 
 .sugestoes{
     display:none;
@@ -214,18 +236,14 @@ textarea{
     cursor:pointer;
 }
 
-.sugestao:hover{
-    background:#f3f4f6;
-}
+.sugestao:hover{background:#f3f4f6;}
 
 .sugestao strong{
     display:block;
     margin-bottom:4px;
 }
 
-.sugestao small{
-    color:#6b7280;
-}
+.sugestao small{color:#6b7280;}
 
 .batch-help{
     background:#f3f4f6;
@@ -252,7 +270,14 @@ textarea{
     color:#6b7280;
 }
 
-@media(max-width:700px){
+.scanner-video{
+    width:100%;
+    border-radius:12px;
+    background:#111827;
+    margin-top:10px;
+}
+
+@media(max-width:800px){
     body{padding:14px;}
 
     .header{
@@ -260,23 +285,21 @@ textarea{
         align-items:stretch;
     }
 
-    .header-actions{
-        flex-direction:column;
-    }
+    .header-actions{flex-direction:column;}
 
     h1{font-size:24px;}
+
+    .dashboard{
+        grid-template-columns:1fr 1fr;
+    }
 
     .filters{
         grid-template-columns:1fr;
     }
 
-    .header button{
-        width:100%;
-    }
+    .header button{width:100%;}
 
-    .botoes-modal{
-        flex-direction:column;
-    }
+    .botoes-modal{flex-direction:column;}
 }
 </style>
 </head>
@@ -291,6 +314,26 @@ textarea{
         <div class="header-actions">
             <button onclick="novoEquipamento()">+ Novo Equipamento</button>
             <button class="btn-green" onclick="abrirLote()">📦 Cadastro em Lote</button>
+            <button class="btn-dark" onclick="abrirScanner()">📷 Ler Patrimônio</button>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="metric">
+            <strong id="dashTotal">0</strong>
+            <span>Total</span>
+        </div>
+        <div class="metric">
+            <strong id="dashDisponiveis">0</strong>
+            <span>Disponíveis</span>
+        </div>
+        <div class="metric">
+            <strong id="dashIndisponiveis">0</strong>
+            <span>Não disponíveis</span>
+        </div>
+        <div class="metric">
+            <strong id="dashSN">0</strong>
+            <span>Sem patrimônio</span>
         </div>
     </div>
 
@@ -308,6 +351,12 @@ textarea{
 
         <select id="filtroLocalizacao" onchange="aplicarFiltros()">
             <option value="">Todas as localizações</option>
+        </select>
+
+        <select id="filtroDisponibilidade" onchange="aplicarFiltros()">
+            <option value="">Todas as disponibilidades</option>
+            <option value="Sim">Disponível para locação</option>
+            <option value="Não">Não disponível para locação</option>
         </select>
     </div>
 
@@ -352,7 +401,16 @@ textarea{
         </select>
 
         <label>Localização</label>
-        <input id="localizacao" placeholder="CASE-FX3, ARM-01, Prateleira Superior...">
+        <div class="autocomplete-wrap">
+            <input
+                id="localizacao"
+                placeholder="CASE-FX3, ARM-01, Prateleira Superior..."
+                autocomplete="off"
+                oninput="mostrarSugestoesLocalizacao()"
+                onfocus="mostrarSugestoesLocalizacao()"
+            >
+            <div id="sugestoesLocalizacao" class="sugestoes"></div>
+        </div>
 
         <label>Disponível para Locação?</label>
         <select id="disponivel">
@@ -398,19 +456,38 @@ textarea{
     </div>
 </div>
 
+<div class="modal" id="modalScanner">
+    <div class="modal-content">
+        <h2 class="modal-title">📷 Ler Patrimônio</h2>
+
+        <div class="batch-help">
+            Aponte a câmera para o código de barras da etiqueta. Se o navegador não suportar leitura automática, digite o número no campo de busca.
+        </div>
+
+        <video id="scannerVideo" class="scanner-video" autoplay muted playsinline></video>
+
+        <div class="botoes-modal">
+            <button class="btn-gray" onclick="pararScanner()">Fechar Scanner</button>
+        </div>
+    </div>
+</div>
+
 <script>
 const API =
 "https://script.google.com/macros/s/AKfycbzJARCNAb_Gbk3zC27xsxvmwKz6Uebo43bHCvv5uIVFFEUafLmiaHgd8ZZJhGn64cXT/exec";
 
 let equipamentos = [];
 let equipamentosBase = [];
+let localizacoesBase = [];
 let editandoId = null;
+let scannerStream = null;
+let scannerAtivo = false;
 
 function normalizarTexto(texto){
     return String(texto || "")
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[\\u0300-\\u036f]/g, "")
         .replace(/[^a-z0-9]/g, "");
 }
 
@@ -418,22 +495,22 @@ function normalizarBusca(texto){
     return String(texto || "")
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+        .replace(/[\\u0300-\\u036f]/g, "");
 }
 
 function somenteNumeros(input){
-    input.value = input.value.replace(/\D/g, "");
+    input.value = input.value.replace(/\\D/g, "");
 }
 
 function formatarPatrimonio(numero){
-    const limpo = String(numero || "").replace(/\D/g, "");
+    const limpo = String(numero || "").replace(/\\D/g, "");
     return limpo ? `BLIP ${limpo}` : "";
 }
 
 function extrairNumeroPatrimonio(valor){
     return String(valor || "")
-        .replace(/^BLIP\s*/i, "")
-        .replace(/\D/g, "");
+        .replace(/^BLIP\\s*/i, "")
+        .replace(/\\D/g, "");
 }
 
 function getPatrimonioFormulario(){
@@ -618,6 +695,47 @@ function preencherCategoriaPorSetor(setor){
     }
 }
 
+function mostrarSugestoesLocalizacao(){
+    const input = document.getElementById("localizacao");
+    const box = document.getElementById("sugestoesLocalizacao");
+    const termo = normalizarBusca(input.value);
+
+    if(!termo || termo.length < 1){
+        box.style.display = "none";
+        box.innerHTML = "";
+        return;
+    }
+
+    const encontrados = localizacoesBase
+        .filter(loc => normalizarBusca(loc).includes(termo))
+        .slice(0, 8);
+
+    if(encontrados.length === 0){
+        box.style.display = "none";
+        box.innerHTML = "";
+        return;
+    }
+
+    box.innerHTML = encontrados.map(loc => `
+        <div class="sugestao" onclick="selecionarLocalizacao('${escapeHtml(loc)}')">
+            <strong>${loc}</strong>
+        </div>
+    `).join("");
+
+    box.style.display = "block";
+}
+
+function selecionarLocalizacao(loc){
+    document.getElementById("localizacao").value = loc;
+    document.getElementById("sugestoesLocalizacao").style.display = "none";
+}
+
+function escapeHtml(texto){
+    return String(texto || "")
+        .replace(/'/g, "\\'")
+        .replace(/"/g, "&quot;");
+}
+
 async function carregarEquipamentos(){
     try{
         const response = await fetch(API);
@@ -625,8 +743,9 @@ async function carregarEquipamentos(){
 
         equipamentos = data.slice(1).reverse();
 
-        atualizarFiltrosLocalizacao();
+        atualizarBasesLocalizacao();
         aplicarFiltros();
+        atualizarDashboard();
     }catch(error){
         console.error("Erro ao carregar equipamentos:", error);
         document.getElementById("lista").innerHTML =
@@ -634,23 +753,39 @@ async function carregarEquipamentos(){
     }
 }
 
-function atualizarFiltrosLocalizacao(){
-    const filtro = document.getElementById("filtroLocalizacao");
-
-    const localizacoes = [...new Set(
+function atualizarBasesLocalizacao(){
+    localizacoesBase = [...new Set(
         equipamentos
             .map(item => item[4])
             .filter(Boolean)
     )].sort();
 
+    atualizarFiltrosLocalizacao();
+}
+
+function atualizarFiltrosLocalizacao(){
+    const filtro = document.getElementById("filtroLocalizacao");
+
     filtro.innerHTML = '<option value="">Todas as localizações</option>';
 
-    localizacoes.forEach(loc => {
+    localizacoesBase.forEach(loc => {
         const option = document.createElement("option");
         option.value = loc;
         option.textContent = loc;
         filtro.appendChild(option);
     });
+}
+
+function atualizarDashboard(){
+    const total = equipamentos.length;
+    const disponiveis = equipamentos.filter(item => item[5] === "Sim").length;
+    const indisponiveis = equipamentos.filter(item => item[5] === "Não").length;
+    const semPatrimonio = equipamentos.filter(item => item[1] === "S/N").length;
+
+    document.getElementById("dashTotal").innerText = total;
+    document.getElementById("dashDisponiveis").innerText = disponiveis;
+    document.getElementById("dashIndisponiveis").innerText = indisponiveis;
+    document.getElementById("dashSN").innerText = semPatrimonio;
 }
 
 function atualizarContador(totalVisivel){
@@ -662,17 +797,29 @@ function aplicarFiltros(){
     const busca = document.getElementById("busca").value.toLowerCase();
     const categoria = document.getElementById("filtroCategoria").value;
     const localizacao = document.getElementById("filtroLocalizacao").value;
+    const disponibilidade = document.getElementById("filtroDisponibilidade").value;
 
     const filtrados = equipamentos.filter(item => {
         const textoBusca = JSON.stringify(item).toLowerCase().includes(busca);
         const categoriaOk = !categoria || item[3] === categoria;
         const localizacaoOk = !localizacao || item[4] === localizacao;
+        const disponibilidadeOk = !disponibilidade || item[5] === disponibilidade;
 
-        return textoBusca && categoriaOk && localizacaoOk;
+        return textoBusca && categoriaOk && localizacaoOk && disponibilidadeOk;
     });
 
     atualizarContador(filtrados.length);
     renderizar(filtrados);
+}
+
+function formatarData(valor){
+    if(!valor) return "";
+
+    const data = new Date(valor);
+
+    if(isNaN(data.getTime())) return valor;
+
+    return data.toLocaleString("pt-BR");
 }
 
 function renderizar(lista){
@@ -693,6 +840,8 @@ function renderizar(lista){
         const localizacao = item[4] || "";
         const disponivel = item[5] || "";
         const observacao = item[6] || "";
+        const dataCadastro = item[7] || "";
+        const ultimaAlteracao = item[8] || "";
         const classe = disponivel === "Sim" ? "disponivel" : "indisponivel";
 
         container.innerHTML += `
@@ -705,6 +854,7 @@ function renderizar(lista){
                 <p>🎯 <strong>Disponível para Locação:</strong> ${disponivel}</p>
 
                 ${observacao ? `<p>📝 <strong>Obs:</strong> ${observacao}</p>` : ""}
+                ${ultimaAlteracao ? `<p>🕒 <strong>Última alteração:</strong> ${formatarData(ultimaAlteracao)}</p>` : ""}
 
                 <div class="tag">ID ${id}</div>
 
@@ -749,6 +899,8 @@ function limparFormulario(){
     document.getElementById("sugestoesEquipamento").style.display = "none";
     document.getElementById("sugestoesEquipamento").innerHTML = "";
     document.getElementById("localizacao").value = "";
+    document.getElementById("sugestoesLocalizacao").style.display = "none";
+    document.getElementById("sugestoesLocalizacao").innerHTML = "";
     document.getElementById("disponivel").value = "Sim";
     document.getElementById("observacao").value = "";
 }
@@ -903,7 +1055,7 @@ async function salvarLote(){
     }
 
     const linhas = texto
-        .split("\n")
+        .split("\\n")
         .map(l => l.trim())
         .filter(Boolean);
 
@@ -958,12 +1110,96 @@ async function salvarLote(){
     }
 }
 
-document.addEventListener("click", function(event){
-    const sugestoes = document.getElementById("sugestoesEquipamento");
-    const input = document.getElementById("equipamento");
+async function abrirScanner(){
+    if(!("BarcodeDetector" in window)){
+        alert("Este navegador não suporta leitura automática de código de barras. Use o campo de busca digitando o número da etiqueta.");
+        return;
+    }
 
-    if(!sugestoes.contains(event.target) && event.target !== input){
-        sugestoes.style.display = "none";
+    document.getElementById("modalScanner").style.display = "flex";
+
+    const video = document.getElementById("scannerVideo");
+
+    try{
+        scannerStream = await navigator.mediaDevices.getUserMedia({
+            video:{
+                facingMode:"environment"
+            }
+        });
+
+        video.srcObject = scannerStream;
+
+        const detector = new BarcodeDetector({
+            formats:["code_128","code_39","ean_13","ean_8","qr_code"]
+        });
+
+        scannerAtivo = true;
+
+        const loop = async () => {
+            if(!scannerAtivo) return;
+
+            try{
+                const codes = await detector.detect(video);
+
+                if(codes.length > 0){
+                    const valor = codes[0].rawValue;
+                    buscarPorCodigoEscaneado(valor);
+                    pararScanner();
+                    return;
+                }
+            }catch(e){}
+
+            requestAnimationFrame(loop);
+        };
+
+        loop();
+
+    }catch(error){
+        console.error("Erro no scanner:", error);
+        alert("Não consegui acessar a câmera.");
+        pararScanner();
+    }
+}
+
+function buscarPorCodigoEscaneado(valor){
+    const numero = String(valor || "").replace(/\\D/g, "");
+    const patrimonio = numero ? `BLIP ${numero}` : valor;
+
+    document.getElementById("busca").value = patrimonio;
+    aplicarFiltros();
+
+    document.getElementById("status").innerText =
+        `📷 Buscando patrimônio: ${patrimonio}`;
+
+    setTimeout(() => {
+        document.getElementById("status").innerText = "";
+    }, 3000);
+}
+
+function pararScanner(){
+    scannerAtivo = false;
+
+    document.getElementById("modalScanner").style.display = "none";
+
+    if(scannerStream){
+        scannerStream.getTracks().forEach(track => track.stop());
+        scannerStream = null;
+    }
+}
+
+document.addEventListener("click", function(event){
+    const sugestoesEquipamento = document.getElementById("sugestoesEquipamento");
+    const inputEquipamento = document.getElementById("equipamento");
+
+    if(!sugestoesEquipamento.contains(event.target) && event.target !== inputEquipamento){
+        sugestoesEquipamento.style.display = "none";
+    }
+
+    const sugestoesLocalizacao = document.getElementById("sugestoesLocalizacao");
+    const inputLocalizacao = document.getElementById("localizacao");
+
+    if(!sugestoesLocalizacao.contains(event.target) && event.target !== inputLocalizacao){
+        sugestoesLocalizacao.style.display = "none";
     }
 });
 
