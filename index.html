@@ -28,6 +28,11 @@ body{
 
 h1{font-size:28px;}
 
+.header-actions{
+    display:flex;
+    gap:8px;
+}
+
 button{
     background:#2563eb;
     color:white;
@@ -40,21 +45,32 @@ button{
 
 button:hover{opacity:.9;}
 
-.btn-editar{
+.btn-dark{background:#111827;}
+.btn-red{background:#dc2626;}
+.btn-green{background:#16a34a;}
+
+.btn-editar,.btn-excluir{
     margin-top:12px;
-    background:#111827;
     width:100%;
 }
 
-.close{background:#dc2626;}
+.btn-editar{background:#111827;}
+.btn-excluir{background:#dc2626;}
 
 .search{
     width:100%;
     padding:12px;
     border:1px solid #ddd;
     border-radius:8px;
-    margin-bottom:14px;
+    margin-bottom:12px;
     font-size:15px;
+}
+
+.filters{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:14px;
 }
 
 .contador{
@@ -86,7 +102,7 @@ button:hover{opacity:.9;}
 
 .card h3{
     margin-bottom:8px;
-    font-size:20px;
+    font-size:22px;
 }
 
 .card p{margin:6px 0;}
@@ -114,7 +130,7 @@ button:hover{opacity:.9;}
 .modal-content{
     background:white;
     width:100%;
-    max-width:500px;
+    max-width:520px;
     border-radius:12px;
     padding:20px;
     max-height:90vh;
@@ -144,6 +160,15 @@ textarea{
     resize:vertical;
 }
 
+.batch-help{
+    background:#f3f4f6;
+    padding:12px;
+    border-radius:8px;
+    font-size:13px;
+    margin-bottom:10px;
+    line-height:1.5;
+}
+
 .botoes-modal{
     display:flex;
     gap:10px;
@@ -160,12 +185,31 @@ textarea{
     color:#6b7280;
 }
 
-@media(max-width:600px){
+@media(max-width:700px){
     body{padding:14px;}
-    .header{flex-direction:column;align-items:stretch;}
+
+    .header{
+        flex-direction:column;
+        align-items:stretch;
+    }
+
+    .header-actions{
+        flex-direction:column;
+    }
+
     h1{font-size:24px;}
-    .header button{width:100%;}
-    .botoes-modal{flex-direction:column;}
+
+    .filters{
+        grid-template-columns:1fr;
+    }
+
+    .header button{
+        width:100%;
+    }
+
+    .botoes-modal{
+        flex-direction:column;
+    }
 }
 </style>
 </head>
@@ -176,14 +220,29 @@ textarea{
 
     <div class="header">
         <h1>📦 Blip Patrimônio</h1>
-        <button onclick="novoEquipamento()">+ Novo Equipamento</button>
+
+        <div class="header-actions">
+            <button onclick="novoEquipamento()">+ Novo Equipamento</button>
+            <button class="btn-green" onclick="abrirLote()">📦 Cadastro em Lote</button>
+        </div>
     </div>
 
     <input
         class="search"
+        id="busca"
         placeholder="🔍 Pesquisar patrimônio, equipamento, categoria ou localização..."
-        oninput="filtrar(this.value)"
+        oninput="aplicarFiltros()"
     >
+
+    <div class="filters">
+        <select id="filtroCategoria" onchange="aplicarFiltros()">
+            <option value="">Todas as categorias</option>
+        </select>
+
+        <select id="filtroLocalizacao" onchange="aplicarFiltros()">
+            <option value="">Todas as localizações</option>
+        </select>
+    </div>
 
     <div class="contador" id="contador">Total de Equipamentos: 0</div>
     <div class="status" id="status"></div>
@@ -197,10 +256,10 @@ textarea{
         <h2 class="modal-title" id="tituloModal">Novo Equipamento</h2>
 
         <label>Patrimônio</label>
-        <input id="patrimonio" placeholder="CAM-001">
+        <input id="patrimonio" placeholder="0752">
 
         <label>Equipamento</label>
-        <input id="equipamento" placeholder="Sony FX3">
+        <input id="equipamento" placeholder="Cabo SDI 20m">
 
         <label>Categoria</label>
         <select id="categoria">
@@ -208,7 +267,7 @@ textarea{
         </select>
 
         <label>Localização</label>
-        <input id="localizacao" placeholder="CASE-FX3">
+        <input id="localizacao" placeholder="CASE-FX3, ARM-01, Prateleira Superior...">
 
         <label>Disponível para Locação?</label>
         <select id="disponivel">
@@ -221,7 +280,32 @@ textarea{
 
         <div class="botoes-modal">
             <button id="btnSalvar" onclick="salvar()">Salvar</button>
-            <button class="close" onclick="fecharModal()">Fechar</button>
+            <button class="btn-red" onclick="fecharModal()">Fechar</button>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal" id="modalLote">
+    <div class="modal-content">
+
+        <h2 class="modal-title">📦 Cadastro em Lote</h2>
+
+        <div class="batch-help">
+            Digite um item por linha usando este formato:<br>
+            <strong>Patrimônio | Equipamento | Categoria | Localização | Disponível | Observação</strong><br><br>
+            Exemplo:<br>
+            0752 | Cabo SDI 20m | Cabos | ARM-01 | Sim | <br>
+            0749 | Cabo XLR 10m | Áudio | CASE-AUDIO | Sim |
+        </div>
+
+        <textarea
+            id="loteTexto"
+            placeholder="0752 | Cabo SDI 20m | Cabos | ARM-01 | Sim |"></textarea>
+
+        <div class="botoes-modal">
+            <button class="btn-green" id="btnSalvarLote" onclick="salvarLote()">Cadastrar Lote</button>
+            <button class="btn-red" onclick="fecharLote()">Fechar</button>
         </div>
 
     </div>
@@ -238,9 +322,12 @@ async function carregarCategorias(){
     try{
         const response = await fetch(API + "?action=categorias");
         const categorias = await response.json();
+
         const select = document.getElementById("categoria");
+        const filtro = document.getElementById("filtroCategoria");
 
         select.innerHTML = "";
+        filtro.innerHTML = '<option value="">Todas as categorias</option>';
 
         categorias.forEach(cat => {
             if(!cat) return;
@@ -248,8 +335,12 @@ async function carregarCategorias(){
             const option = document.createElement("option");
             option.value = cat;
             option.textContent = cat;
-
             select.appendChild(option);
+
+            const filtroOption = document.createElement("option");
+            filtroOption.value = cat;
+            filtroOption.textContent = cat;
+            filtro.appendChild(filtroOption);
         });
     }catch(error){
         console.error("Erro ao carregar categorias:", error);
@@ -265,8 +356,8 @@ async function carregarEquipamentos(){
 
         equipamentos = data.slice(1).reverse();
 
-        atualizarContador();
-        renderizar(equipamentos);
+        atualizarFiltrosLocalizacao();
+        aplicarFiltros();
     }catch(error){
         console.error("Erro ao carregar equipamentos:", error);
         document.getElementById("lista").innerHTML =
@@ -274,9 +365,45 @@ async function carregarEquipamentos(){
     }
 }
 
-function atualizarContador(){
+function atualizarFiltrosLocalizacao(){
+    const filtro = document.getElementById("filtroLocalizacao");
+
+    const localizacoes = [...new Set(
+        equipamentos
+            .map(item => item[4])
+            .filter(Boolean)
+    )].sort();
+
+    filtro.innerHTML = '<option value="">Todas as localizações</option>';
+
+    localizacoes.forEach(loc => {
+        const option = document.createElement("option");
+        option.value = loc;
+        option.textContent = loc;
+        filtro.appendChild(option);
+    });
+}
+
+function atualizarContador(totalVisivel){
     document.getElementById("contador").innerText =
-        "Total de Equipamentos: " + equipamentos.length;
+        `Total de Equipamentos: ${equipamentos.length} | Exibindo: ${totalVisivel}`;
+}
+
+function aplicarFiltros(){
+    const busca = document.getElementById("busca").value.toLowerCase();
+    const categoria = document.getElementById("filtroCategoria").value;
+    const localizacao = document.getElementById("filtroLocalizacao").value;
+
+    const filtrados = equipamentos.filter(item => {
+        const textoBusca = JSON.stringify(item).toLowerCase().includes(busca);
+        const categoriaOk = !categoria || item[3] === categoria;
+        const localizacaoOk = !localizacao || item[4] === localizacao;
+
+        return textoBusca && categoriaOk && localizacaoOk;
+    });
+
+    atualizarContador(filtrados.length);
+    renderizar(filtrados);
 }
 
 function renderizar(lista){
@@ -315,19 +442,13 @@ function renderizar(lista){
                 <button class="btn-editar" onclick="editar('${id}')">
                     ✏️ Editar
                 </button>
+
+                <button class="btn-excluir" onclick="excluir('${id}', '${patrimonio}')">
+                    🗑️ Excluir
+                </button>
             </div>
         `;
     });
-}
-
-function filtrar(texto){
-    texto = texto.toLowerCase();
-
-    const filtrado = equipamentos.filter(item =>
-        JSON.stringify(item).toLowerCase().includes(texto)
-    );
-
-    renderizar(filtrado);
 }
 
 function abrirModal(){
@@ -420,7 +541,6 @@ async function salvar(){
             : "✅ Equipamento cadastrado com sucesso.";
 
         fecharModal();
-
         await carregarEquipamentos();
 
         setTimeout(() => {
@@ -432,6 +552,109 @@ async function salvar(){
     }finally{
         btnSalvar.disabled = false;
         btnSalvar.innerText = editandoId ? "Salvar Alterações" : "Salvar";
+    }
+}
+
+async function excluir(id, patrimonio){
+    const confirmar = confirm(
+        `Tem certeza que deseja excluir o patrimônio ${patrimonio}?`
+    );
+
+    if(!confirmar) return;
+
+    try{
+        await fetch(API,{
+            method:"POST",
+            body:JSON.stringify({
+                action:"delete",
+                id:id
+            })
+        });
+
+        document.getElementById("status").innerText =
+            "🗑️ Equipamento excluído com sucesso.";
+
+        await carregarEquipamentos();
+
+        setTimeout(() => {
+            document.getElementById("status").innerText = "";
+        }, 3000);
+    }catch(error){
+        console.error("Erro ao excluir:", error);
+        alert("Erro ao excluir. Veja o console.");
+    }
+}
+
+function abrirLote(){
+    document.getElementById("modalLote").style.display = "flex";
+}
+
+function fecharLote(){
+    document.getElementById("modalLote").style.display = "none";
+    document.getElementById("loteTexto").value = "";
+}
+
+async function salvarLote(){
+    const texto = document.getElementById("loteTexto").value.trim();
+
+    if(!texto){
+        alert("Cole ou digite os itens do lote.");
+        return;
+    }
+
+    const linhas = texto
+        .split("\n")
+        .map(l => l.trim())
+        .filter(Boolean);
+
+    const itens = linhas.map(linha => {
+        const partes = linha.split("|").map(p => p.trim());
+
+        return {
+            patrimonio: partes[0] || "",
+            equipamento: partes[1] || "",
+            categoria: partes[2] || "",
+            localizacao: partes[3] || "",
+            disponivelLocacao: partes[4] || "Sim",
+            observacao: partes[5] || ""
+        };
+    });
+
+    const invalidos = itens.filter(item => !item.patrimonio || !item.equipamento);
+
+    if(invalidos.length > 0){
+        alert("Todos os itens precisam ter pelo menos Patrimônio e Equipamento.");
+        return;
+    }
+
+    const btn = document.getElementById("btnSalvarLote");
+    btn.disabled = true;
+    btn.innerText = "Cadastrando...";
+
+    try{
+        await fetch(API,{
+            method:"POST",
+            body:JSON.stringify({
+                action:"bulkCreate",
+                itens:itens
+            })
+        });
+
+        document.getElementById("status").innerText =
+            `✅ ${itens.length} itens cadastrados com sucesso.`;
+
+        fecharLote();
+        await carregarEquipamentos();
+
+        setTimeout(() => {
+            document.getElementById("status").innerText = "";
+        }, 3000);
+    }catch(error){
+        console.error("Erro no cadastro em lote:", error);
+        alert("Erro ao cadastrar lote. Veja o console.");
+    }finally{
+        btn.disabled = false;
+        btn.innerText = "Cadastrar Lote";
     }
 }
 
