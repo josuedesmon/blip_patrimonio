@@ -410,6 +410,14 @@ function normalizarTexto(texto){
     return String(texto || "")
         .toLowerCase()
         .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "");
+}
+
+function normalizarBusca(texto){
+    return String(texto || "")
+        .toLowerCase()
+        .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "");
 }
 
@@ -498,7 +506,7 @@ async function carregarEquipamentosBase(){
 function mostrarSugestoesEquipamento(){
     const input = document.getElementById("equipamento");
     const box = document.getElementById("sugestoesEquipamento");
-    const termo = normalizarTexto(input.value);
+    const termo = normalizarBusca(input.value);
 
     if(!termo || termo.length < 2){
         box.style.display = "none";
@@ -510,7 +518,7 @@ function mostrarSugestoesEquipamento(){
 
     const encontrados = equipamentosBase
         .filter(item => {
-            const alvo = normalizarTexto(
+            const alvo = normalizarBusca(
                 `${item.nomeEquipamento} ${item.setor} ${item.subsetor} ${item.descricao}`
             );
 
@@ -544,19 +552,70 @@ function selecionarEquipamentoBase(index){
 
     document.getElementById("equipamento").value = item.nomeEquipamento || "";
 
-    if(item.setor){
-        const categoria = document.getElementById("categoria");
-        const existe = Array.from(categoria.options).some(
-            opt => opt.value === item.setor
-        );
-
-        if(existe){
-            categoria.value = item.setor;
-        }
-    }
+    preencherCategoriaPorSetor(item.setor);
 
     box.style.display = "none";
     box.innerHTML = "";
+}
+
+function preencherCategoriaPorSetor(setor){
+    if(!setor) return;
+
+    const categoria = document.getElementById("categoria");
+    const setorNormalizado = normalizarTexto(setor);
+
+    const mapa = {
+        "camera": "Câmeras",
+        "cameras": "Câmeras",
+        "lente": "Lentes",
+        "lentes": "Lentes",
+        "monitor": "Monitores",
+        "monitores": "Monitores",
+        "switcher": "Switchers",
+        "switchers": "Switchers",
+        "audio": "Áudio",
+        "iluminacao": "Iluminação",
+        "luz": "Iluminação",
+        "luzes": "Iluminação",
+        "cabo": "Cabos",
+        "cabos": "Cabos",
+        "case": "Cases",
+        "cases": "Cases",
+        "energia": "Energia",
+        "acessorio": "Acessórios",
+        "acessorios": "Acessórios",
+        "ferramenta": "Ferramentas",
+        "ferramentas": "Ferramentas"
+    };
+
+    let categoriaDesejada = mapa[setorNormalizado];
+
+    if(!categoriaDesejada){
+        const optionEncontrada = Array.from(categoria.options).find(opt => {
+            const optNormalizado = normalizarTexto(opt.value);
+
+            return (
+                optNormalizado === setorNormalizado ||
+                optNormalizado.includes(setorNormalizado) ||
+                setorNormalizado.includes(optNormalizado)
+            );
+        });
+
+        if(optionEncontrada){
+            categoria.value = optionEncontrada.value;
+            return;
+        }
+    }
+
+    if(categoriaDesejada){
+        const option = Array.from(categoria.options).find(
+            opt => normalizarTexto(opt.value) === normalizarTexto(categoriaDesejada)
+        );
+
+        if(option){
+            categoria.value = option.value;
+        }
+    }
 }
 
 async function carregarEquipamentos(){
