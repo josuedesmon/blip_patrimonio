@@ -45,7 +45,6 @@ button{
 
 button:hover{opacity:.9;}
 
-.btn-dark{background:#111827;}
 .btn-red{background:#dc2626;}
 .btn-green{background:#16a34a;}
 
@@ -192,6 +191,42 @@ textarea{
     font-weight:normal;
 }
 
+.autocomplete-wrap{
+    position:relative;
+}
+
+.sugestoes{
+    display:none;
+    background:white;
+    border:1px solid #ddd;
+    border-radius:10px;
+    box-shadow:0 6px 18px rgba(0,0,0,.12);
+    overflow:hidden;
+    margin-top:-4px;
+    margin-bottom:10px;
+    max-height:260px;
+    overflow-y:auto;
+}
+
+.sugestao{
+    padding:12px;
+    border-bottom:1px solid #eee;
+    cursor:pointer;
+}
+
+.sugestao:hover{
+    background:#f3f4f6;
+}
+
+.sugestao strong{
+    display:block;
+    margin-bottom:4px;
+}
+
+.sugestao small{
+    color:#6b7280;
+}
+
 .batch-help{
     background:#f3f4f6;
     padding:12px;
@@ -300,7 +335,16 @@ textarea{
         </div>
 
         <label>Equipamento</label>
-        <input id="equipamento" placeholder="Cabo SDI 20m">
+        <div class="autocomplete-wrap">
+            <input
+                id="equipamento"
+                placeholder="Digite para buscar: Sigma 28-105..."
+                autocomplete="off"
+                oninput="mostrarSugestoesEquipamento()"
+                onfocus="mostrarSugestoesEquipamento()"
+            >
+            <div id="sugestoesEquipamento" class="sugestoes"></div>
+        </div>
 
         <label>Categoria</label>
         <select id="categoria">
@@ -359,7 +403,15 @@ const API =
 "https://script.google.com/macros/s/AKfycbzJARCNAb_Gbk3zC27xsxvmwKz6Uebo43bHCvv5uIVFFEUafLmiaHgd8ZZJhGn64cXT/exec";
 
 let equipamentos = [];
+let equipamentosBase = [];
 let editandoId = null;
+
+function normalizarTexto(texto){
+    return String(texto || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
 
 function somenteNumeros(input){
     input.value = input.value.replace(/\D/g, "");
@@ -431,6 +483,80 @@ async function carregarCategorias(){
         document.getElementById("categoria").innerHTML =
             '<option value="">Erro ao carregar categorias</option>';
     }
+}
+
+async function carregarEquipamentosBase(){
+    try{
+        const response = await fetch(API + "?action=equipamentosBase");
+        equipamentosBase = await response.json();
+    }catch(error){
+        console.error("Erro ao carregar equipamentos base:", error);
+        equipamentosBase = [];
+    }
+}
+
+function mostrarSugestoesEquipamento(){
+    const input = document.getElementById("equipamento");
+    const box = document.getElementById("sugestoesEquipamento");
+    const termo = normalizarTexto(input.value);
+
+    if(!termo || termo.length < 2){
+        box.style.display = "none";
+        box.innerHTML = "";
+        return;
+    }
+
+    const termos = termo.split(" ").filter(Boolean);
+
+    const encontrados = equipamentosBase
+        .filter(item => {
+            const alvo = normalizarTexto(
+                `${item.nomeEquipamento} ${item.setor} ${item.subsetor} ${item.descricao}`
+            );
+
+            return termos.every(t => alvo.includes(t));
+        })
+        .slice(0, 8);
+
+    if(encontrados.length === 0){
+        box.style.display = "none";
+        box.innerHTML = "";
+        return;
+    }
+
+    box.innerHTML = encontrados.map((item, index) => `
+        <div class="sugestao" onclick="selecionarEquipamentoBase(${index})">
+            <strong>${item.nomeEquipamento}</strong>
+            <small>${item.setor || ""}${item.subsetor ? " > " + item.subsetor : ""}</small>
+        </div>
+    `).join("");
+
+    box.dataset.resultados = JSON.stringify(encontrados);
+    box.style.display = "block";
+}
+
+function selecionarEquipamentoBase(index){
+    const box = document.getElementById("sugestoesEquipamento");
+    const resultados = JSON.parse(box.dataset.resultados || "[]");
+    const item = resultados[index];
+
+    if(!item) return;
+
+    document.getElementById("equipamento").value = item.nomeEquipamento || "";
+
+    if(item.setor){
+        const categoria = document.getElementById("categoria");
+        const existe = Array.from(categoria.options).some(
+            opt => opt.value === item.setor
+        );
+
+        if(existe){
+            categoria.value = item.setor;
+        }
+    }
+
+    box.style.display = "none";
+    box.innerHTML = "";
 }
 
 async function carregarEquipamentos(){
@@ -561,6 +687,8 @@ function limparFormulario(){
     document.getElementById("patrimonioNumero").disabled = false;
     document.getElementById("patrimonioNumero").placeholder = "0752";
     document.getElementById("equipamento").value = "";
+    document.getElementById("sugestoesEquipamento").style.display = "none";
+    document.getElementById("sugestoesEquipamento").innerHTML = "";
     document.getElementById("localizacao").value = "";
     document.getElementById("disponivel").value = "Sim";
     document.getElementById("observacao").value = "";
@@ -771,7 +899,17 @@ async function salvarLote(){
     }
 }
 
+document.addEventListener("click", function(event){
+    const sugestoes = document.getElementById("sugestoesEquipamento");
+    const input = document.getElementById("equipamento");
+
+    if(!sugestoes.contains(event.target) && event.target !== input){
+        sugestoes.style.display = "none";
+    }
+});
+
 carregarCategorias();
+carregarEquipamentosBase();
 carregarEquipamentos();
 </script>
 
