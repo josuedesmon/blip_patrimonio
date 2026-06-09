@@ -160,6 +160,38 @@ textarea{
     resize:vertical;
 }
 
+.patrimonio-box{
+    display:flex;
+    gap:8px;
+    align-items:center;
+}
+
+.prefixo{
+    background:#111827;
+    color:white;
+    padding:12px 14px;
+    border-radius:8px;
+    font-weight:bold;
+    margin-bottom:8px;
+}
+
+.check-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:4px 0 10px;
+}
+
+.check-row input{
+    width:auto;
+    margin:0;
+}
+
+.check-row label{
+    margin:0;
+    font-weight:normal;
+}
+
 .batch-help{
     background:#f3f4f6;
     padding:12px;
@@ -256,7 +288,16 @@ textarea{
         <h2 class="modal-title" id="tituloModal">Novo Equipamento</h2>
 
         <label>Patrimônio</label>
-        <input id="patrimonio" placeholder="0752">
+
+        <div class="patrimonio-box">
+            <div class="prefixo">BLIP</div>
+            <input id="patrimonioNumero" inputmode="numeric" placeholder="0752" oninput="somenteNumeros(this)">
+        </div>
+
+        <div class="check-row">
+            <input type="checkbox" id="semPatrimonio" onchange="alternarSemPatrimonio()">
+            <label for="semPatrimonio">S/ patrimônio</label>
+        </div>
 
         <label>Equipamento</label>
         <input id="equipamento" placeholder="Cabo SDI 20m">
@@ -293,10 +334,12 @@ textarea{
 
         <div class="batch-help">
             Digite um item por linha usando este formato:<br>
-            <strong>Patrimônio | Equipamento | Categoria | Localização | Disponível | Observação</strong><br><br>
+            <strong>Número | Equipamento | Categoria | Localização | Disponível | Observação</strong><br><br>
+            O sistema coloca <strong>BLIP</strong> automaticamente na frente do número.<br>
+            Para item sem patrimônio, use <strong>S/N</strong> no primeiro campo.<br><br>
             Exemplo:<br>
             0752 | Cabo SDI 20m | Cabos | ARM-01 | Sim | <br>
-            0749 | Cabo XLR 10m | Áudio | CASE-AUDIO | Sim |
+            S/N | Adaptador HDMI | Acessórios | Gaveta 1 | Não | Uso interno
         </div>
 
         <textarea
@@ -317,6 +360,47 @@ const API =
 
 let equipamentos = [];
 let editandoId = null;
+
+function somenteNumeros(input){
+    input.value = input.value.replace(/\D/g, "");
+}
+
+function formatarPatrimonio(numero){
+    const limpo = String(numero || "").replace(/\D/g, "");
+    return limpo ? `BLIP ${limpo}` : "";
+}
+
+function extrairNumeroPatrimonio(valor){
+    return String(valor || "")
+        .replace(/^BLIP\s*/i, "")
+        .replace(/\D/g, "");
+}
+
+function getPatrimonioFormulario(){
+    const sem = document.getElementById("semPatrimonio").checked;
+
+    if(sem){
+        return "S/N";
+    }
+
+    return formatarPatrimonio(
+        document.getElementById("patrimonioNumero").value
+    );
+}
+
+function alternarSemPatrimonio(){
+    const sem = document.getElementById("semPatrimonio").checked;
+    const input = document.getElementById("patrimonioNumero");
+
+    input.disabled = sem;
+
+    if(sem){
+        input.value = "";
+        input.placeholder = "S/N";
+    }else{
+        input.placeholder = "0752";
+    }
+}
 
 async function carregarCategorias(){
     try{
@@ -472,7 +556,10 @@ function novoEquipamento(){
 }
 
 function limparFormulario(){
-    document.getElementById("patrimonio").value = "";
+    document.getElementById("patrimonioNumero").value = "";
+    document.getElementById("semPatrimonio").checked = false;
+    document.getElementById("patrimonioNumero").disabled = false;
+    document.getElementById("patrimonioNumero").placeholder = "0752";
     document.getElementById("equipamento").value = "";
     document.getElementById("localizacao").value = "";
     document.getElementById("disponivel").value = "Sim";
@@ -492,7 +579,19 @@ function editar(id){
     document.getElementById("tituloModal").innerText = "Editar Equipamento";
     document.getElementById("btnSalvar").innerText = "Salvar Alterações";
 
-    document.getElementById("patrimonio").value = item[1] || "";
+    const patrimonio = item[1] || "";
+
+    if(patrimonio === "S/N"){
+        document.getElementById("semPatrimonio").checked = true;
+        document.getElementById("patrimonioNumero").value = "";
+    }else{
+        document.getElementById("semPatrimonio").checked = false;
+        document.getElementById("patrimonioNumero").value =
+            extrairNumeroPatrimonio(patrimonio);
+    }
+
+    alternarSemPatrimonio();
+
     document.getElementById("equipamento").value = item[2] || "";
     document.getElementById("categoria").value = item[3] || "";
     document.getElementById("localizacao").value = item[4] || "";
@@ -503,11 +602,11 @@ function editar(id){
 }
 
 async function salvar(){
-    const patrimonio = document.getElementById("patrimonio").value.trim();
+    const patrimonio = getPatrimonioFormulario();
     const equipamento = document.getElementById("equipamento").value.trim();
 
     if(!patrimonio || !equipamento){
-        alert("Preencha pelo menos o patrimônio e o equipamento.");
+        alert("Preencha o patrimônio ou marque S/ patrimônio, e informe o equipamento.");
         return;
     }
 
@@ -594,6 +693,20 @@ function fecharLote(){
     document.getElementById("loteTexto").value = "";
 }
 
+function formatarPatrimonioLote(valor){
+    const v = String(valor || "").trim();
+
+    if(!v || v.toUpperCase() === "S/N"){
+        return "S/N";
+    }
+
+    if(v.toUpperCase().startsWith("BLIP")){
+        return v;
+    }
+
+    return formatarPatrimonio(v);
+}
+
 async function salvarLote(){
     const texto = document.getElementById("loteTexto").value.trim();
 
@@ -611,7 +724,7 @@ async function salvarLote(){
         const partes = linha.split("|").map(p => p.trim());
 
         return {
-            patrimonio: partes[0] || "",
+            patrimonio: formatarPatrimonioLote(partes[0]),
             equipamento: partes[1] || "",
             categoria: partes[2] || "",
             localizacao: partes[3] || "",
@@ -623,7 +736,7 @@ async function salvarLote(){
     const invalidos = itens.filter(item => !item.patrimonio || !item.equipamento);
 
     if(invalidos.length > 0){
-        alert("Todos os itens precisam ter pelo menos Patrimônio e Equipamento.");
+        alert("Todos os itens precisam ter pelo menos Patrimônio/S/N e Equipamento.");
         return;
     }
 
